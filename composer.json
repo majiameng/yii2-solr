@@ -1,0 +1,25 @@
+{
+    "name": "tinymeng/yii2-solr",
+    "description": "yii2 use solr",
+    "type": "library",
+    "keywords": [
+        "tinymeng","yii2","solr", "yii2-solr"
+    ],
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "JiaMeng Ma",
+            "email": "666@majiameng.com",
+            "homepage": "https://www.majiameng.com"
+        }
+    ],
+    "require": {
+        "php": ">=5.4.0",
+        "solarium/solarium": "^4.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "tinymeng\\solr\\": "src"
+        }
+    }
+}
