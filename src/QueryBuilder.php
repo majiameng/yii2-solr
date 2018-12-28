@@ -24,6 +24,7 @@ class QueryBuilder extends BaseObject
     }
 
     /**
+     * @author: JiaMeng <666@majiameng.com>
      * Generates query from a [[Query]] object.
      * @param Query $query the [[Query]] object from which the query will be generated
      * @return array the generated SQL statement (the first array element) and the corresponding
@@ -39,9 +40,11 @@ class QueryBuilder extends BaseObject
         if($query->where != null){
             foreach ($query->where as $key=>$value){
                 if(count($value) == 1){
+                    if(in_array($value,['and','or']))continue;
                     $parts[] = [$key=>$value];
                 }else{
-                    $parts[] = $this->buildCondition($value);
+                    $val = $this->buildCondition($value);
+                    if(!empty($val)) $parts[] = $val;
                 }
             }
         }
@@ -50,26 +53,25 @@ class QueryBuilder extends BaseObject
 
     /**
      * Parses the condition specification and generates the corresponding SQL expression.
-     *
+     * @author: JiaMeng <666@majiameng.com>
      * @param string|array $condition the condition specification. Please refer to [[Query::where()]] on how to specify a condition.
      * @throws \yii\base\InvalidParamException if unknown operator is used in query
      * @throws \yii\base\NotSupportedException if string conditions are used in where
-     * @return string the generated SQL expression
+     * @return array|boolean
      */
     public function buildCondition($condition)
     {
         static $builders = [
-//            'not' => 'buildNotCondition',
-//            'and' => 'buildAndCondition',
-//            'or' => 'buildAndCondition',
+            'not' => 'buildNotCondition',
             'between' => 'buildBetweenCondition',
-//            'not between' => 'buildBetweenCondition',
-//            'in' => 'buildInCondition',
-//            'not in' => 'buildInCondition',
-//            'like' => 'buildLikeCondition',
-//            'not like' => 'buildLikeCondition',
-//            'or like' => 'buildLikeCondition',
-//            'or not like' => 'buildLikeCondition',
+            'not between' => 'buildBetweenCondition',
+            'in' => 'buildInCondition',
+            'not in' => 'buildInCondition',
+            'like' => 'buildLikeCondition',
+            'not like' => 'buildLikeCondition',
+            'or like' => 'buildLikeCondition',
+            'or not like' => 'buildLikeCondition',
+            '=' => 'buildHalfBoundedRangeCondition',
             'lt' => 'buildHalfBoundedRangeCondition',
             '<' => 'buildHalfBoundedRangeCondition',
             'lte' => 'buildHalfBoundedRangeCondition',
@@ -87,7 +89,7 @@ class QueryBuilder extends BaseObject
         }
 
         if (isset($condition[0])) { // operator format: operator, operand 1, operand 2, ...
-            $operator = strtolower($condition[0]);
+            $operator = trim(strtolower($condition[0]));
             if (isset($builders[$operator])) {
                 $method = $builders[$operator];
                 array_shift($condition);
@@ -97,41 +99,44 @@ class QueryBuilder extends BaseObject
                 throw new InvalidParamException('Found unknown operator in query: ' . $operator);
             }
         }
-        return [];
+        return false;
     }
 
+    /**
+     * Description:  buildNotCondition
+     * @author: JiaMeng <666@majiameng.com>
+     * Updater:
+     * @param $operator
+     * @param $operands
+     * @return array|boolean
+     */
     private function buildNotCondition($operator, $operands)
     {
-        if (count($operands) != 1) {
-            throw new InvalidParamException("Operator '$operator' requires exactly one operand.");
+        if (!isset($operands[0])) {
+            throw new InvalidParamException("Operator '$operator' requires two operands.");
+        }elseif(!isset($operands[1])){
+            return false;
         }
 
-        $operand = reset($operands);
-        if (is_array($operand)) {
-            $operand = $this->buildCondition($operand);
-        }
+        list($column, $value) = $operands;
 
-        return [$operator => $operand];
+
+        if($operator == 'not'){
+            $column = 'NOT '.$column;
+        }else{
+            throw new InvalidParamException("Operator '$operator' is not implemented.");
+        }
+        return [$column=>$value];
     }
 
-    private function buildAndCondition($operator, $operands)
-    {
-        $parts = [];
-        foreach ($operands as $operand) {
-            if (is_array($operand)) {
-                $operand = $this->buildCondition($operand);
-            }
-            if (!empty($operand)) {
-                $parts[] = $operand;
-            }
-        }
-        if (!empty($parts)) {
-            return [$operator => $parts];
-        } else {
-            return [];
-        }
-    }
-
+    /**
+     * Description:  buildBetweenCondition
+     * @author: JiaMeng <666@majiameng.com>
+     * Updater:
+     * @param $operator
+     * @param $operands
+     * @return array
+     */
     private function buildBetweenCondition($operator, $operands)
     {
 
@@ -140,101 +145,86 @@ class QueryBuilder extends BaseObject
         }
 
         list($column, $value1, $value2) = $operands;
-        $filter = "[ $value1 To $value2 ]";
-//        if ($operator == 'not between') {
-//            $filter = ['not' => $filter];
-//        }
+        $filter = "[ $value1 TO $value2 ]";
+        if ($operator == 'not between') {
+            $column = 'NOT '.$column;
+        }
         return [$column=>$filter];
     }
 
+    /**
+     * Description:  buildInCondition
+     * @author: JiaMeng <666@majiameng.com>
+     * Updater:
+     * @param $operator
+     * @param $operands
+     * @return array|boolean
+     */
     private function buildInCondition($operator, $operands)
     {
-        if (!isset($operands[0], $operands[1])) {
+        if (!isset($operands[0])) {
             throw new InvalidParamException("Operator '$operator' requires two operands.");
+        }elseif(!isset($operands[1])){
+            return false;
+        }
+        list($column, $value) = $operands;
+
+        if($value === null){
+            return false;
+        }else if(is_string($value) || is_integer($value)){
+            $value = "( $value )";
+        }elseif(is_array($value)){
+            $value = "( ".implode(' OR ',$value)." )";
+        }else{
+            throw new InvalidParamException("Value formatted incorrectly ,Must be String or Array");
         }
 
-        list($column, $values) = $operands;
-
-        $values = (array)$values;
-
-        if (empty($values) || $column === []) {
-            return $operator === 'in' ? ['terms' => ['_uid' => []]] : []; // this condition is equal to WHERE false
-        }
-
-        if (count($column) > 1) {
-            return $this->buildCompositeInCondition($operator, $column, $values);
-        } elseif (is_array($column)) {
-            $column = reset($column);
-        }
-        $canBeNull = false;
-        foreach ($values as $i => $value) {
-            if (is_array($value)) {
-                $values[$i] = $value = isset($value[$column]) ? $value[$column] : null;
-            }
-            if ($value === null) {
-                $canBeNull = true;
-                unset($values[$i]);
-            }
-        }
-        if ($column == '_id') {
-            if (empty($values) && $canBeNull) { // there is no null pk
-                $filter = ['terms' => ['_uid' => []]]; // this condition is equal to WHERE false
-            } else {
-                $filter = ['ids' => ['values' => array_values($values)]];
-                if ($canBeNull) {
-                    $filter = [
-                        'or' => [
-                            $filter,
-                            ['missing' => ['field' => $column, 'existence' => true, 'null_value' => true]]
-                        ]
-                    ];
-                }
-            }
-        } else {
-            if (empty($values) && $canBeNull) {
-                $filter = ['missing' => ['field' => $column, 'existence' => true, 'null_value' => true]];
-            } else {
-                $filter = ['in' => [$column => array_values($values)]];
-                if ($canBeNull) {
-                    $filter = [
-                        'or' => [
-                            $filter,
-                            ['missing' => ['field' => $column, 'existence' => true, 'null_value' => true]]
-                        ]
-                    ];
-                }
-            }
-        }
         if ($operator == 'not in') {
-            $filter = ['not' => $filter];
+            $column = 'NOT '.$column;
         }
-
-        return $filter;
+        return [$column=>$value];
     }
 
     /**
-     * Builds a half-bounded range condition
-     * (for "gt", ">", "gte", ">=", "lt", "<", "lte", "<=" operators)
-     * @param string $operator
-     * @param array $operands
-     * @return array Filter expression
+     * Description:  buildLikeCondition
+     * @author: JiaMeng <666@majiameng.com>
+     * Updater:
+     * @param $operator
+     * @param $operands
+     * @return array|boolean
      */
-    private function buildHalfBoundedRangeCondition($operator, $operands)
+    private function buildLikeCondition($operator, $operands)
     {
-        if (!isset($operands[0], $operands[1])) {
+        if (!isset($operands[0])) {
             throw new InvalidParamException("Operator '$operator' requires two operands.");
+        }elseif(!isset($operands[1])){
+            return false;
         }
         list($column, $value) = $operands;
 
         $range_operator = null;
-        if (in_array($operator, ['gte', '>='])) {
-            $range_operator = "[ $value To * ]";
-        } elseif (in_array($operator, ['lte', '<='])) {
-            $range_operator = "[ * To $value ]";
-        } elseif (in_array($operator, ['gt', '>'])) {
-            $range_operator = "{ $value TO * }";
-        } elseif (in_array($operator, ['lt', '<'])) {
-            $range_operator = "{ * To $value }";
+        if ($operator === 'like') {
+            $range_operator = "*$value*";
+        } elseif ($operator === 'not like') {
+            $column = "NOT ".$column;
+            $range_operator = "*$value*";
+        } elseif ($operator === 'or like') {
+            if(is_string($value)  || is_integer($value)){
+                $range_operator = "( $value )";
+            }elseif(is_array($value)){
+                $range_operator = "( ".implode(' OR ',$value)." )";
+            }else{
+                throw new InvalidParamException("Value formatted incorrectly ,Must be String or Array");
+            }
+        } elseif ($operator === 'or not like') {
+            $column = "NOT ".$column;
+            if(is_string($value)  || is_integer($value)){
+                $range_operator = "( $value )";
+            }elseif(is_array($value)){
+                $range_operator = "( ".implode(' OR ',$value)." )";
+            }else{
+                throw new InvalidParamException("Value formatted incorrectly ,Must be String or Array");
+            }
         }
         if ($range_operator === null) {
             throw new InvalidParamException("Operator '$operator' is not implemented.");
@@ -243,13 +233,40 @@ class QueryBuilder extends BaseObject
         return [$column=>$range_operator];
     }
 
-    protected function buildCompositeInCondition($operator, $columns, $values)
+    /**
+     * Builds a half-bounded range condition
+     * @author: JiaMeng <666@majiameng.com>
+     * (for "=", "gt", ">", "gte", ">=", "lt", "<", "lte", "<=" operators)
+     * @param string $operator
+     * @param array $operands
+     * @return array|boolean
+     */
+    private function buildHalfBoundedRangeCondition($operator, $operands)
     {
-        throw new NotSupportedException('composite in is not supported by elasticsearch.');
+        if (!isset($operands[0])) {
+            throw new InvalidParamException("Operator '$operator' requires two operands.");
+        }elseif(!isset($operands[1])){
+            return false;
+        }
+        list($column, $value) = $operands;
+
+        $range_operator = null;
+        if ($operator === '=') {
+            $range_operator = $value;
+        }elseif (in_array($operator, ['gte', '>='])) {
+            $range_operator = "[ $value TO * ]";
+        } elseif (in_array($operator, ['lte', '<='])) {
+            $range_operator = "[ * TO $value ]";
+        } elseif (in_array($operator, ['gt', '>'])) {
+            $range_operator = "{ $value TO * }";
+        } elseif (in_array($operator, ['lt', '<'])) {
+            $range_operator = "{ * TO $value }";
+        }
+        if ($range_operator === null) {
+            throw new InvalidParamException("Operator '$operator' is not implemented.");
+        }
+
+        return [$column=>$range_operator];
     }
 
-    private function buildLikeCondition($operator, $operands)
-    {
-        throw new NotSupportedException('like conditions are not supported by elasticsearch.');
-    }
 }
