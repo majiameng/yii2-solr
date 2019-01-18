@@ -71,6 +71,8 @@ class QueryBuilder extends BaseObject
             'not like' => 'buildLikeCondition',
             'or like' => 'buildLikeCondition',
             'or not like' => 'buildLikeCondition',
+            '!=' => 'buildHalfBoundedRangeCondition',
+            '<>' => 'buildHalfBoundedRangeCondition',
             '=' => 'buildHalfBoundedRangeCondition',
             'lt' => 'buildHalfBoundedRangeCondition',
             '<' => 'buildHalfBoundedRangeCondition',
@@ -261,6 +263,13 @@ class QueryBuilder extends BaseObject
             $range_operator = "{ $value TO * }";
         } elseif (in_array($operator, ['lt', '<'])) {
             $range_operator = "{ * TO $value }";
+        } elseif (in_array($operator, ['<>', '!='])) {
+            $column = "NOT $column";
+            if(is_array($value)){
+                $range_operator = "( ".implode(' OR ',$value)." )";
+            }else{
+                $range_operator = $value;
+            }
         }
         if ($range_operator === null) {
             throw new InvalidParamException("Operator '$operator' is not implemented.");

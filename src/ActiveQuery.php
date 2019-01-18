@@ -90,7 +90,7 @@ class ActiveQuery extends Component implements ActiveQueryInterface
                 $this->where[] = $condition;
             }
         }elseif(count($condition) == 3){
-            if (isset($operands[0], $operands[1], $operands[2])) {
+            if (isset($condition[0], $condition[1], $condition[2])) {
                 $this->where[] = $condition;
             }
         }else{
@@ -135,7 +135,7 @@ class ActiveQuery extends Component implements ActiveQueryInterface
      * @author: JiaMeng <666@majiameng.com>
      * Updater:
      * @param null $db
-     * @return mixed
+     * @return array|mixed
      */
     public function all($db = null)
     {
@@ -193,11 +193,15 @@ class ActiveQuery extends Component implements ActiveQueryInterface
         if(!empty($where) && is_string($where)){
             $queryWhere = $where;
         }elseif(!empty($where) && is_array($where)){
-            $queryWhere = key($where[0]).':'.$where[0][key($where[0])];
+            $k = key($where[0]);
+            $v = $where[0][key($where[0])] === '' ? '""' : $where[0][key($where[0])];
+            $queryWhere = $k.':'.$v;
             if(count($where)>1){
                 unset($where[0]);
                 foreach ($where as $key=>$value){
-                    $query->createFilterQuery(key($value).$key)->setQuery(key($value).":".$value[key($value)]);
+                    $k = key($value);
+                    $v = $value[key($value)] === '' ? '""' : $value[key($value)];
+                    $query->createFilterQuery($k.$key)->setQuery($k.":".$v);
                 }
             }
         }
@@ -246,7 +250,6 @@ class ActiveQuery extends Component implements ActiveQueryInterface
             throw new \Exception('Solr Response error:'.$response->getStatusCode().' , body ;'.$response->getBody());
         }else{
             $highlighting = $result->getHighlighting();
-
             $result = json_decode($response->getBody());
             if($this->asArray !== null){
                 /** get primaryKey */
