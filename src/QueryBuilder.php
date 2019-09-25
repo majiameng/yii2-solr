@@ -171,7 +171,7 @@ class QueryBuilder extends BaseObject
         }
         list($column, $value) = $operands;
 
-        if($value === null){
+        if($value === null || empty($value)){
             return false;
         }else if(is_string($value) || is_integer($value)){
             $value = "( $value )";
