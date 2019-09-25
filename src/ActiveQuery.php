@@ -214,7 +214,19 @@ class ActiveQuery extends Component implements ActiveQueryInterface
         }
 
         /** set start and rows param (comparable to SQL limit) using fluent interface */
-        $query->setStart($this->offset)->setRows($this->limit);
+        if(!empty($this->offset)){
+            if((int)$this->offset < 0){
+                $this->offset = 0;
+            }
+            $query->setStart($this->offset);
+        }
+
+        if(!empty($this->limit)){
+            if((int)$this->limit < 0){
+                $this->limit = 10;
+            }
+            $query->setRows($this->limit);
+        }
 
         /** sort the results by price ascending */
         if($this->orderBy !== null){
