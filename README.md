@@ -3,7 +3,7 @@
 ### Install
 
 ```
-composer require tinymeng/yii2-solr dev-master -vvv
+composer require tinymeng/yii2-solr v1.0 -vvv
 ```
 
 > 类库使用的命名空间为`\\tinymeng\\solr`
