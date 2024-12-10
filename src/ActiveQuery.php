@@ -82,7 +82,6 @@ class ActiveQuery extends Component implements ActiveQueryInterface
     public function orFilterWhere(array $condition){self::cancelFunction(__FUNCTION__);}
     public function filterWhere(array $condition){self::cancelFunction(__FUNCTION__);}
     public function exists($db = null){self::cancelFunction(__FUNCTION__);}
-    public function count($q = '*', $db = null){self::cancelFunction(__FUNCTION__);}
 
     public function andFilterWhere(array $condition){
         if(count($condition) == 1){
@@ -154,6 +153,30 @@ class ActiveQuery extends Component implements ActiveQueryInterface
         /** Get response */
         $response = $this->getResponse($result);
         return $response;
+    }
+
+    /**
+     * @param $db
+     * @return array|mixed
+     * @throws \Exception
+     * @author: JiaMeng <666@majiameng.com>
+     */
+    public function count($db = null){
+        $modelClass = $this->modelClass;
+        if ($db === null) {
+            /** Getting DB singletons */
+            $db = $modelClass::getDb();
+        }
+
+        /** Setting query conditions */
+        $query = $this->setQuery($db);
+
+        /** Select */
+        $result = $db->select($query,$modelClass::tableName());
+
+        /** Get response */
+        $response = $this->asArray()->getResponse($result);
+        return $response['count'];
     }
 
     /**
